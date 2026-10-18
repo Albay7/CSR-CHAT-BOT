@@ -12,7 +12,20 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from dotenv import load_dotenv
-from openai import AzureOpenAI, OpenAI
+
+# Try importing SDKs gracefully
+try:
+    from google import genai
+    from google.genai import types as genai_types
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
+
+try:
+    from openai import AzureOpenAI, OpenAI
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
 
 # Load environment variables
 load_dotenv()
@@ -22,6 +35,7 @@ class CambridgeRAGEngine:
     """
     RAG Engine that coordinates document indexing, semantic embedding retrieval,
     and contextual generation for Cambridge student support.
+    Supports Gemini, Azure OpenAI, and OpenAI.
     """
 
     def __init__(self, data_path: Optional[str] = None):
@@ -33,20 +47,32 @@ class CambridgeRAGEngine:
 
         self.documents: List[Dict[str, Any]] = []
         self.embeddings: Optional[np.ndarray] = None
-        self.provider = os.getenv("MODEL_PROVIDER", "azure").lower()
+        self.provider = os.getenv("MODEL_PROVIDER", "gemini").lower()
 
         # Initialize clients & model configs
         self._init_clients()
         self.load_and_index_documents()
 
     def _init_clients(self) -> None:
-        """Initializes OpenAI or AzureOpenAI client based on environment variables."""
+        """Initializes Gemini, OpenAI, or AzureOpenAI client based on environment variables."""
         self.client = None
         self.chat_model = None
         self.embed_model = None
         self.is_configured = False
 
-        if self.provider == "azure":
+        if self.provider == "gemini":
+            api_key = os.getenv("GEMINI_API_KEY", "")
+            self.chat_model = os.getenv("GEMINI_CHAT_MODEL", "gemini-1.5-flash")
+            self.embed_model = os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
+
+            if api_key and not api_key.startswith("your_") and HAS_GENAI:
+                try:
+                    self.client = genai.Client(api_key=api_key)
+                    self.is_configured = True
+                except Exception as e:
+                    print(f"Warning: Failed to initialize Gemini client: {e}")
+
+        elif self.provider == "azure" and HAS_OPENAI:
             api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
             endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
             api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
@@ -63,7 +89,7 @@ class CambridgeRAGEngine:
                     self.is_configured = True
                 except Exception as e:
                     print(f"Warning: Failed to initialize Azure OpenAI client: {e}")
-        else:
+        elif HAS_OPENAI:
             api_key = os.getenv("OPENAI_API_KEY", "")
             self.chat_model = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
             self.embed_model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
@@ -97,12 +123,24 @@ class CambridgeRAGEngine:
         if self.is_configured and self.client:
             try:
                 texts = [d["search_text"] for d in self.documents]
-                response = self.client.embeddings.create(
-                    input=texts,
-                    model=self.embed_model,
-                )
-                vectors = [item.embedding for item in response.data]
-                self.embeddings = np.array(vectors, dtype=np.float32)
+                if self.provider == "gemini":
+                    # Google GenAI embeddings
+                    vectors = []
+                    for t in texts:
+                        res = self.client.models.embed_content(
+                            model=self.embed_model,
+                            contents=t,
+                        )
+                        vectors.append(res.embeddings[0].values)
+                    self.embeddings = np.array(vectors, dtype=np.float32)
+                else:
+                    response = self.client.embeddings.create(
+                        input=texts,
+                        model=self.embed_model,
+                    )
+                    vectors = [item.embedding for item in response.data]
+                    self.embeddings = np.array(vectors, dtype=np.float32)
+
                 # Normalize for fast dot-product cosine similarity
                 norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
                 norms[norms == 0] = 1.0
@@ -116,11 +154,19 @@ class CambridgeRAGEngine:
         if not self.is_configured or not self.client:
             return None
         try:
-            response = self.client.embeddings.create(
-                input=[query],
-                model=self.embed_model,
-            )
-            vec = np.array(response.data[0].embedding, dtype=np.float32)
+            if self.provider == "gemini":
+                res = self.client.models.embed_content(
+                    model=self.embed_model,
+                    contents=query,
+                )
+                vec = np.array(res.embeddings[0].values, dtype=np.float32)
+            else:
+                response = self.client.embeddings.create(
+                    input=[query],
+                    model=self.embed_model,
+                )
+                vec = np.array(response.data[0].embedding, dtype=np.float32)
+
             norm = np.linalg.norm(vec)
             return vec / (norm if norm > 0 else 1.0)
         except Exception as e:
@@ -219,29 +265,54 @@ class CambridgeRAGEngine:
             f"--- RETRIEVED CONTEXT ---\n{context_str}\n--- END CONTEXT ---"
         )
 
-        # If LLM client is configured, generate with OpenAI / Azure OpenAI
+        # If LLM client is configured, generate with Gemini / OpenAI / Azure
         if self.is_configured and self.client:
-            messages = [{"role": "system", "content": system_prompt}]
-            if chat_history:
-                # Include last 4 turns for conversational context
-                for msg in chat_history[-4:]:
-                    messages.append({"role": msg["role"], "content": msg["content"]})
-            messages.append({"role": "user", "content": query})
-
             try:
-                response = self.client.chat.completions.create(
-                    model=self.chat_model,
-                    messages=messages,
-                    temperature=0.2,
-                    max_tokens=600,
-                )
-                answer = response.choices[0].message.content or ""
-                return {
-                    "answer": answer,
-                    "sources": sources,
-                    "retrieved_docs": retrieved_docs,
-                    "mode": f"Online ({self.provider.capitalize()} OpenAI: {self.chat_model})",
-                }
+                if self.provider == "gemini":
+                    # Construct prompt for Gemini
+                    convo_history = ""
+                    if chat_history:
+                        for msg in chat_history[-4:]:
+                            speaker = "User" if msg["role"] == "user" else "Assistant"
+                            convo_history += f"{speaker}: {msg['content']}\n"
+
+                    full_prompt = (
+                        f"{system_prompt}\n\n"
+                        f"Previous Conversation:\n{convo_history}\n"
+                        f"User Question: {query}\n"
+                        "Answer:"
+                    )
+                    res = self.client.models.generate_content(
+                        model=self.chat_model,
+                        contents=full_prompt,
+                    )
+                    answer = res.text or ""
+                    return {
+                        "answer": answer,
+                        "sources": sources,
+                        "retrieved_docs": retrieved_docs,
+                        "mode": f"Online (Google Gemini: {self.chat_model})",
+                    }
+                else:
+                    messages = [{"role": "system", "content": system_prompt}]
+                    if chat_history:
+                        for msg in chat_history[-4:]:
+                            messages.append({"role": msg["role"], "content": msg["content"]})
+                    messages.append({"role": "user", "content": query})
+
+                    response = self.client.chat.completions.create(
+                        model=self.chat_model,
+                        messages=messages,
+                        temperature=0.2,
+                        max_tokens=600,
+                    )
+                    answer = response.choices[0].message.content or ""
+                    return {
+                        "answer": answer,
+                        "sources": sources,
+                        "retrieved_docs": retrieved_docs,
+                        "mode": f"Online ({self.provider.capitalize()} OpenAI: {self.chat_model})",
+                    }
             except Exception as e:
                 return {
                     "answer": (

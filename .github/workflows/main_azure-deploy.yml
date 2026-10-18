@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: cambridge-support-rag-bot  # Set your Azure Web App name
+  AZURE_WEBAPP_NAME: CSR-RAG-BOT  # Matches your Azure Web App name
   PYTHON_VERSION: '3.11'
 
 jobs:
