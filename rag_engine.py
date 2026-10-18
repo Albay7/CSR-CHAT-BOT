@@ -103,7 +103,7 @@ class CambridgeRAGEngine:
                     print(f"Warning: Failed to initialize OpenAI client: {e}")
 
     def load_and_index_documents(self) -> None:
-        """Loads JSON knowledge base and precomputes or caches embeddings."""
+        """Loads JSON knowledge base and precomputes or loads cached embeddings from disk."""
         if not self.data_path.exists():
             raise FileNotFoundError(f"Knowledge base file not found at: {self.data_path}")
 
@@ -120,35 +120,60 @@ class CambridgeRAGEngine:
                 f"Content: {doc.get('content', '')}"
             )
 
-        # Compute embeddings if client is configured
-        if self.is_configured and self.client:
-            try:
-                texts = [d["search_text"] for d in self.documents]
-                if self.provider == "gemini":
-                    # Google GenAI embeddings
-                    vectors = []
-                    for t in texts:
-                        res = self.client.models.embed_content(
-                            model=self.embed_model,
-                            contents=t,
-                        )
-                        vectors.append(res.embeddings[0].values)
-                    self.embeddings = np.array(vectors, dtype=np.float32)
-                else:
-                    response = self.client.embeddings.create(
-                        input=texts,
-                        model=self.embed_model,
-                    )
-                    vectors = [item.embedding for item in response.data]
-                    self.embeddings = np.array(vectors, dtype=np.float32)
+        if not self.is_configured or not self.client:
+            return
 
-                # Normalize for fast dot-product cosine similarity
-                norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
-                norms[norms == 0] = 1.0
-                self.embeddings = self.embeddings / norms
-            except Exception as e:
-                print(f"Embedding computation error (falling back to keyword matching): {e}")
-                self.embeddings = None
+        # Disk cache: save embeddings next to the knowledge base JSON
+        cache_path = self.data_path.parent / "embeddings_cache.npy"
+        checksum_path = self.data_path.parent / "embeddings_checksum.txt"
+
+        # Compute a simple checksum based on number of docs + first doc title
+        current_checksum = f"{len(self.documents)}_{self.documents[0].get('id', '')}_{self.embed_model}"
+
+        # Try to load cached embeddings
+        if cache_path.exists() and checksum_path.exists():
+            try:
+                saved_checksum = checksum_path.read_text().strip()
+                if saved_checksum == current_checksum:
+                    self.embeddings = np.load(str(cache_path))
+                    print(f"Loaded embeddings from disk cache ({len(self.embeddings)} vectors).")
+                    return
+            except Exception:
+                pass  # Cache is stale or corrupt — recompute below
+
+        # Compute embeddings fresh and save to disk
+        try:
+            texts = [d["search_text"] for d in self.documents]
+            if self.provider == "gemini":
+                vectors = []
+                for t in texts:
+                    res = self.client.models.embed_content(
+                        model=self.embed_model,
+                        contents=t,
+                    )
+                    vectors.append(res.embeddings[0].values)
+                self.embeddings = np.array(vectors, dtype=np.float32)
+            else:
+                response = self.client.embeddings.create(
+                    input=texts,
+                    model=self.embed_model,
+                )
+                vectors = [item.embedding for item in response.data]
+                self.embeddings = np.array(vectors, dtype=np.float32)
+
+            # Normalize
+            norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
+            norms[norms == 0] = 1.0
+            self.embeddings = self.embeddings / norms
+
+            # Save to disk cache
+            np.save(str(cache_path), self.embeddings)
+            checksum_path.write_text(current_checksum)
+            print(f"Computed and cached {len(self.embeddings)} embeddings to disk.")
+        except Exception as e:
+            print(f"Embedding computation error (falling back to keyword matching): {e}")
+            self.embeddings = None
+
 
     def _get_query_embedding(self, query: str) -> Optional[np.ndarray]:
         """Generates a normalized embedding vector for the user query."""
