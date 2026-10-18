@@ -62,7 +62,8 @@ class CambridgeRAGEngine:
 
         if self.provider == "gemini":
             api_key = os.getenv("GEMINI_KEY") or os.getenv("GEMINI_API_KEY", "")
-            self.chat_model = os.getenv("GEMINI_CHAT_MODEL", "gemini-1.5-flash")
+            # In google-genai SDK, use gemini-2.5-flash or gemini-2.0-flash
+            self.chat_model = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
             self.embed_model = os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
 
             if api_key and not api_key.startswith("your_") and HAS_GENAI:
@@ -282,11 +283,20 @@ class CambridgeRAGEngine:
                         f"User Question: {query}\n"
                         "Answer:"
                     )
-                    res = self.client.models.generate_content(
-                        model=self.chat_model,
-                        contents=full_prompt,
-                    )
-                    answer = res.text or ""
+                    try:
+                        res = self.client.models.generate_content(
+                            model=self.chat_model,
+                            contents=full_prompt,
+                        )
+                        answer = res.text or ""
+                    except Exception as inner_err:
+                        # Fallback to gemini-2.0-flash or gemini-2.5-flash
+                        fallback_model = "gemini-2.0-flash" if self.chat_model != "gemini-2.0-flash" else "gemini-2.5-flash"
+                        res = self.client.models.generate_content(
+                            model=fallback_model,
+                            contents=full_prompt,
+                        )
+                        answer = res.text or ""
                     return {
                         "answer": answer,
                         "sources": sources,
