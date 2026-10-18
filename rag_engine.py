@@ -61,7 +61,7 @@ class CambridgeRAGEngine:
         self.is_configured = False
 
         if self.provider == "gemini":
-            api_key = os.getenv("GEMINI_API_KEY", "")
+            api_key = os.getenv("GEMINI_KEY") or os.getenv("GEMINI_API_KEY", "")
             self.chat_model = os.getenv("GEMINI_CHAT_MODEL", "gemini-1.5-flash")
             self.embed_model = os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
 
