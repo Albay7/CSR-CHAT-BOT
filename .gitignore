@@ -45,9 +45,6 @@ env/
 .DS_Store
 Thumbs.db
 
-# Streamlit local runtime state
-.streamlit/secrets.toml
-
 # Embedding cache (auto-generated on first run)
 data/embeddings_cache.npy
 data/embeddings_checksum.txt

@@ -2,27 +2,38 @@
 
 An intelligent Retrieval-Augmented Generation (RAG) assistant designed to help applicants, students, and staff navigate University of Cambridge admissions, academic structures, supervisions, college life, financial aid, and student services.
 
-Built with **Streamlit**, **Azure OpenAI / OpenAI**, and semantic vector similarity search.
+Built with **FastAPI**, **Google Gemini / OpenAI**, a responsive vanilla web interface, and semantic vector similarity search with local disk caching.
 
 ---
 
-## 📁 Project Structure
+## 📁 Clean Architecture
 
 ```text
 cambridge-support-rag-bot/
 ├── .github/
 │   └── workflows/
 │       └── main_azure-deploy.yml     # Azure App Service CI/CD GitHub Actions workflow
-├── .venv/                             # Local Python virtual environment (ignored in git)
 ├── data/
-│   └── cambridge_knowledge_base.json  # Curated student support knowledge base
-├── app.py                             # Streamlit conversational chat interface
-├── rag_engine.py                      # Retrieval, vector embeddings, & LLM generation
-├── requirements.txt                   # Project Python dependencies
-├── .env.example                       # Environment variable template
-├── .gitignore                         # Git exclusion rules
-└── README.md                          # Project documentation
+│   └── cambridge_knowledge_base.json # Curated student support knowledge base
+├── static/
+│   └── index.html                    # Lightweight, responsive collegiate chat UI
+├── main.py                           # FastAPI application & API endpoints
+├── rag_engine.py                     # Semantic vector embeddings & LLM generation
+├── startup.sh                        # Azure App Service Linux startup script
+├── requirements.txt                  # Python production dependencies
+├── .env.example                      # Environment variables template
+├── .gitignore                        # Git exclusion rules
+└── README.md                         # Project documentation
 ```
+
+---
+
+## ⚡ Why This Architecture?
+
+- **Zero Cold Start Lag**: FastAPI starts up in milliseconds, unlike heavy notebook/prototyping frameworks.
+- **Fast Static Delivery**: The HTML/CSS/JS frontend loads instantly in the browser without multi-megabyte bundle downloads.
+- **Async & Threadpool Ready**: API endpoints run concurrently without blocking request threads.
+- **Cached Embeddings**: Embeddings are calculated once and cached on disk (`.npy`), avoiding startup delay.
 
 ---
 
@@ -65,44 +76,48 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-Open `.env` and fill in your Azure OpenAI or standard OpenAI credentials:
+Open `.env` and fill in your Gemini or Azure OpenAI credentials:
 
 ```dotenv
-MODEL_PROVIDER=azure
-
-# Azure OpenAI settings
-AZURE_OPENAI_API_KEY=your_key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
-AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o-mini
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
+MODEL_PROVIDER=gemini
+GEMINI_KEY=your_gemini_api_key_here
 ```
 
-> **Note:** The application includes an **Offline Knowledge Mode**. If no API keys are provided, it will still perform keyword search and display retrieved articles directly.
+> **Note:** The application includes an **Offline Knowledge Mode**. If no API keys are provided, it will still retrieve and display verified articles directly from the knowledge base.
 
 ---
 
-### 4. Run the Streamlit Application
+### 4. Run the FastAPI Application
 
 ```bash
-streamlit run app.py
+python -m uvicorn main:app --reload --port 8000
 ```
 
-The app will open automatically in your browser at `http://localhost:8501`.
+Open your browser and navigate to:
+**http://localhost:8000**
+
+Interactive API documentation (Swagger UI) is available at:
+**http://localhost:8000/docs**
 
 ---
 
 ## ☁️ Deploying to Azure App Service
 
-1. Create a **Linux Web App** in the Azure Portal (Runtime: Python 3.11).
-2. Set the startup command in Azure App Service Configuration:
-   ```bash
-   python -m streamlit run app.py --server.port 8000 --server.address 0.0.0.0
-   ```
-3. Download the **Publish Profile** from your Azure Web App.
-4. Add the publish profile content as a GitHub repository secret named:
+1. Create a **Linux Web App** in the Azure Portal (Runtime: Python 3.11 or 3.12).
+2. Under **Configuration > General settings**:
+   - Set **Startup Command** to:
+     ```bash
+     python -m uvicorn main:app --host 0.0.0.0 --port 8000
+     ```
+     *(or `./startup.sh`)*
+   - Turn **Always On** to **On** (keeps container warm).
+3. Under **Configuration > Application settings**, add:
+   - `GEMINI_KEY` (or Azure OpenAI variables)
+   - `MODEL_PROVIDER=gemini`
+   - `SCM_DO_BUILD_DURING_DEPLOYMENT=true`
+4. Add your Azure **Publish Profile** to GitHub repository secrets as:
    `AZUREAPPSERVICE_PUBLISHPROFILE`
-5. Push your code to the `main` branch to trigger `.github/workflows/main_azure-deploy.yml`.
+5. Push your code to the `main` branch to trigger GitHub Actions deployment.
 
 ---
 
