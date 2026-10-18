@@ -11,8 +11,24 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from dotenv import load_dotenv
-
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # Fallback minimal .env loader if python-dotenv is missing
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        try:
+            with open(env_path, "r", encoding="utf-8") as _f:
+                for _line in _f:
+                    _line = _line.strip()
+                    if _line and not _line.startswith("#") and "=" in _line:
+                        _k, _v = _line.split("=", 1)
+                        _k, _v = _k.strip(), _v.strip().strip("'\"")
+                        if _k not in os.environ:
+                            os.environ[_k] = _v
+        except Exception:
+            pass
 # Try importing SDKs gracefully
 try:
     from google import genai
@@ -26,9 +42,6 @@ try:
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False
-
-# Load environment variables
-load_dotenv()
 
 
 class CambridgeRAGEngine:
