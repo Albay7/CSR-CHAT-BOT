@@ -54,17 +54,17 @@ except ImportError:
     HAS_OPENAI = False
 
 
-class CambridgeRAGEngine:
+class CSRRAGEngine:
     """
     RAG Engine that coordinates document indexing, semantic embedding retrieval,
-    and contextual generation for Cambridge student support.
+    and contextual generation for the Customer Service Representative (CSR) Agent.
     Supports Gemini, Azure OpenAI, and OpenAI.
     """
 
     def __init__(self, data_path: Optional[str] = None):
         if data_path is None:
             base_dir = Path(__file__).resolve().parent
-            self.data_path = base_dir / "data" / "cambridge_knowledge_base.json"
+            self.data_path = base_dir / "data" / "csr_knowledge_base.json"
         else:
             self.data_path = Path(data_path)
 
@@ -75,7 +75,6 @@ class CambridgeRAGEngine:
         # Initialize clients & model configs
         self._init_clients()
         self.load_and_index_documents()
-
     def _init_clients(self) -> None:
         """Initializes Gemini, OpenAI, or AzureOpenAI client based on environment variables."""
         self.client = None
@@ -176,12 +175,15 @@ class CambridgeRAGEngine:
             texts = [d["search_text"] for d in self.documents]
             if self.provider == "gemini":
                 vectors = []
-                for t in texts:
+                batch_size = 25
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i : i + batch_size]
                     res = self.client.models.embed_content(
                         model=self.embed_model,
-                        contents=t,
+                        contents=batch,
                     )
-                    vectors.append(res.embeddings[0].values)
+                    for emb in res.embeddings:
+                        vectors.append(emb.values)
                 self.embeddings = np.array(vectors, dtype=np.float32)
             else:
                 response = self.client.embeddings.create(
@@ -310,15 +312,13 @@ class CambridgeRAGEngine:
         context_str = "\n\n".join(context_blocks)
 
         system_prompt = (
-            "You are the Cambridge Support RAG Bot, an official, supportive, and precise AI assistant "
-            "for University of Cambridge applicants, students, and staff.\n\n"
+            "You are the CSR Agent, a professional, empathetic, and knowledgeable Customer Service Representative.\n\n"
             "Guidelines:\n"
-            "1. Answer the question accurately using ONLY the retrieved context below.\n"
-            "2. If the context does not contain sufficient information, politely state that you do not "
-            "have that specific information and suggest contacting the relevant Cambridge department or college.\n"
-            "3. Be welcoming, clear, professional, and collegiate in tone.\n"
-            "4. Mention relevant source titles when helpful.\n\n"
-            f"--- RETRIEVED CONTEXT ---\n{context_str}\n--- END CONTEXT ---"
+            "1. Answer the customer's question or issue accurately, drawing upon the retrieved Customer Support knowledge base and ticket resolutions below.\n"
+            "2. If the context does not contain sufficient details to resolve the inquiry, acknowledge the situation politely and guide the customer on next steps (e.g., advising them how to submit a specialized ticket or reach human escalation).\n"
+            "3. Be welcoming, clear, professional, empathetic, and solution-focused in tone.\n"
+            "4. Mention relevant ticket categories or verified resolution guidance when helpful.\n\n"
+            f"--- RETRIEVED CUSTOMER SUPPORT KNOWLEDGE BASE ---\n{context_str}\n--- END CONTEXT ---"
         )
 
         # If LLM client is configured, generate with Gemini / OpenAI / Azure
@@ -382,8 +382,8 @@ class CambridgeRAGEngine:
                 return {
                     "answer": (
                         f"*(API Call Error: {str(e)})*\n\n"
-                        f"**Here is the relevant information retrieved from the Cambridge Knowledge Base:**\n\n"
-                        + "\n\n".join([f"- **{d['title']}**: {d['content']}" for d in retrieved_docs])
+                        f"**Here is the relevant information retrieved from the Customer Support Knowledge Base:**\n\n"
+                        + "\n\n".join([f"- **{d['title']}** ({d['category']}):\n{d['content']}" for d in retrieved_docs])
                     ),
                     "sources": sources,
                     "retrieved_docs": retrieved_docs,
@@ -392,19 +392,24 @@ class CambridgeRAGEngine:
 
         # Offline / Demo Mode when no API keys are configured yet
         fallback_answer = (
-            "👋 **Welcome to Cambridge Support!** *(Demo Mode: API keys not detected in `.env`)*\n\n"
-            "Based on our knowledge base, here is the relevant guidance on your inquiry:\n\n"
+            "👋 **Hello! I am your CSR Agent.** *(Demo Mode: API keys not detected in `.env`)*\n\n"
+            "Based on our Customer Support Knowledge Base, here is the relevant guidance on your inquiry:\n\n"
         )
         for doc in retrieved_docs:
             fallback_answer += f"### 📌 {doc.get('title')} ({doc.get('category')})\n{doc.get('content')}\n\n"
 
         fallback_answer += (
-            "\n> 💡 *To activate live AI generation, configure your Azure OpenAI or standard OpenAI credentials in `.env`.*"
+            "\n> 💡 *To activate live AI generation, configure your Gemini API key in `.env`.*"
         )
 
         return {
             "answer": fallback_answer,
             "sources": sources,
             "retrieved_docs": retrieved_docs,
-            "mode": "Knowledge Base Direct Retrieval (Offline)",
+            "mode": "Customer Support Knowledge Retrieval (Offline)",
         }
+
+
+# Backwards compatibility alias
+CambridgeRAGEngine = CSRRAGEngine
+

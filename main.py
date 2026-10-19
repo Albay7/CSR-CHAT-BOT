@@ -8,23 +8,23 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from rag_engine import CambridgeRAGEngine
+from rag_engine import CSRRAGEngine
 
 # ── Startup: initialise RAG engine once ───────────────────────────────────────
-rag_engine: Optional[CambridgeRAGEngine] = None
+rag_engine: Optional[CSRRAGEngine] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global rag_engine
-    rag_engine = CambridgeRAGEngine()
+    rag_engine = CSRRAGEngine()
     yield
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Cambridge Support RAG Bot API",
-    description="Retrieval-Augmented Generation API for Cambridge student support.",
+    title="CSR Agent API",
+    description="Customer Service Representative (CSR) AI Agent powered by RAG and Google Gemini.",
     version="1.0.0",
     lifespan=lifespan,
 )

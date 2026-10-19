@@ -1,39 +1,30 @@
-# 🎓 Cambridge Support RAG Bot
+# 🎧 CSR Agent - Customer Service Representative AI
 
-An intelligent Retrieval-Augmented Generation (RAG) assistant designed to help applicants, students, and staff navigate University of Cambridge admissions, academic structures, supervisions, college life, financial aid, and student services.
+An intelligent Retrieval-Augmented Generation (RAG) assistant designed to handle customer support inquiries across billing, returns & refunds, account access, technical support, outages, and general customer care.
 
-Built with **FastAPI**, **Google Gemini / OpenAI**, a responsive vanilla web interface, and semantic vector similarity search with local disk caching.
+Powered by **FastAPI**, **Google Gemini** (`gemini-3.8-flash`), and Hugging Face's real-world customer support ticket knowledge base ([`Tobi-Bueck/customer-support-tickets`](https://huggingface.co/datasets/Tobi-Bueck/customer-support-tickets)).
 
 ---
 
 ## 📁 Clean Architecture
 
 ```text
-cambridge-support-rag-bot/
+csr-agent/
 ├── .github/
 │   └── workflows/
 │       └── main_azure-deploy.yml     # Azure App Service CI/CD GitHub Actions workflow
 ├── data/
-│   └── cambridge_knowledge_base.json # Curated student support knowledge base
+│   └── csr_knowledge_base.json       # Hugging Face customer support tickets knowledge base
 ├── static/
-│   └── index.html                    # Lightweight, responsive collegiate chat UI
+│   └── index.html                    # Responsive, real-time CSR Agent chat UI
 ├── main.py                           # FastAPI application & API endpoints
-├── rag_engine.py                     # Semantic vector embeddings & LLM generation
+├── rag_engine.py                     # Semantic vector embeddings & Gemini RAG generation
 ├── startup.sh                        # Azure App Service Linux startup script
-├── requirements.txt                  # Python production dependencies
+├── requirements.txt                  # Minimal Python dependencies
 ├── .env.example                      # Environment variables template
-├── .gitignore                        # Git exclusion rules
-└── README.md                         # Project documentation
+├── .gitignore                        # Git exclusion rules (protects .env)
+└── README.md                         # Documentation
 ```
-
----
-
-## ⚡ Why This Architecture?
-
-- **Zero Cold Start Lag**: FastAPI starts up in milliseconds, unlike heavy notebook/prototyping frameworks.
-- **Fast Static Delivery**: The HTML/CSS/JS frontend loads instantly in the browser without multi-megabyte bundle downloads.
-- **Async & Threadpool Ready**: API endpoints run concurrently without blocking request threads.
-- **Cached Embeddings**: Embeddings are calculated once and cached on disk (`.npy`), avoiding startup delay.
 
 ---
 
@@ -45,7 +36,6 @@ On **Windows (PowerShell)**:
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
-*(Or on Command Prompt: `.venv\Scripts\activate.bat`)*
 
 On **macOS / Linux**:
 ```bash
@@ -54,43 +44,23 @@ source .venv/bin/activate
 
 ---
 
-### 2. Install Dependencies
+### 2. Configure Environment Variables
 
-```bash
-pip install -r requirements.txt
-```
-
----
-
-### 3. Configure Environment Variables
-
-Create your local `.env` file by copying the template:
-
-**Windows (PowerShell)**:
-```powershell
-Copy-Item .env.example .env
-```
-
-**macOS / Linux**:
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in your Gemini or Azure OpenAI credentials:
+Create `.env` and add your Google Gemini API key:
 
 ```dotenv
 MODEL_PROVIDER=gemini
-GEMINI_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_CHAT_MODEL=gemini-3.8-flash
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 ```
-
-> **Note:** The application includes an **Offline Knowledge Mode**. If no API keys are provided, it will still retrieve and display verified articles directly from the knowledge base.
 
 ---
 
-### 4. Run the FastAPI Application
+### 3. Run the CSR Agent
 
-```bash
-python -m uvicorn main:app --reload --port 8000
+```powershell
+.\.venv\Scripts\python -m uvicorn main:app --reload --port 8000
 ```
 
 Open your browser and navigate to:
@@ -101,26 +71,20 @@ Interactive API documentation (Swagger UI) is available at:
 
 ---
 
-## ☁️ Deploying to Azure App Service
+## ☁️ Azure App Service Deployment
 
-1. Create a **Linux Web App** in the Azure Portal (Runtime: Python 3.11 or 3.12).
-2. Under **Configuration > General settings**:
-   - Set **Startup Command** to:
-     ```bash
-     python -m uvicorn main:app --host 0.0.0.0 --port 8000
-     ```
-     *(or `./startup.sh`)*
-   - Turn **Always On** to **On** (keeps container warm).
-3. Under **Configuration > Application settings**, add:
-   - `GEMINI_KEY` (or Azure OpenAI variables)
+1. Set the Startup Command in Azure Configuration > General settings:
+   ```bash
+   python -m uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
+2. Set Environment Variables in Azure Configuration > Application settings:
+   - `GEMINI_API_KEY`
    - `MODEL_PROVIDER=gemini`
    - `SCM_DO_BUILD_DURING_DEPLOYMENT=true`
-4. Add your Azure **Publish Profile** to GitHub repository secrets as:
-   `AZUREAPPSERVICE_PUBLISHPROFILE`
-5. Push your code to the `main` branch to trigger GitHub Actions deployment.
+3. Push to `main` branch to deploy via GitHub Actions.
 
 ---
 
 ## 🛡️ License
 
-MIT License. Designed for Cambridge student and applicant support.
+MIT License.

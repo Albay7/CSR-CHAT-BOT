@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cambridge Support Bot | AI Student Assistant</title>
-  <meta name="description" content="AI-powered student support chatbot for the University of Cambridge. Get instant answers about admissions, supervisions, financial aid, and more." />
+  <title>CSR Agent | AI Customer Service Representative</title>
+  <meta name="description" content="AI-powered Customer Service Representative assistant. Get instant, verified resolutions for billing, returns, account access, technical troubleshooting, and customer inquiries." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
@@ -441,10 +441,10 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-icon">🎓</div>
+      <div class="logo-icon">🎧</div>
       <div class="logo-text">
-        <h1>Cambridge Support</h1>
-        <p>RAG Assistant</p>
+        <h1>CSR Agent</h1>
+        <p>Customer Support AI</p>
       </div>
     </div>
 
@@ -461,13 +461,13 @@
 
     <div class="sidebar-divider"></div>
 
-    <p class="sidebar-section-title">Suggested Questions</p>
-    <button class="question-btn" onclick="askSuggestion(this)">What are the undergraduate admission deadlines?</button>
-    <button class="question-btn" onclick="askSuggestion(this)">How does the collegiate system work?</button>
-    <button class="question-btn" onclick="askSuggestion(this)">What is the Cambridge Bursary Scheme?</button>
-    <button class="question-btn" onclick="askSuggestion(this)">What is a supervision and who is my Director of Studies?</button>
-    <button class="question-btn" onclick="askSuggestion(this)">Where can I find mental health and counselling support?</button>
-    <button class="question-btn" onclick="askSuggestion(this)">How do I access the Cambridge Careers Service?</button>
+    <p class="sidebar-section-title">Suggested Inquiries</p>
+    <button class="question-btn" onclick="askSuggestion(this)">How do I request a return or exchange for my order?</button>
+    <button class="question-btn" onclick="askSuggestion(this)">I am experiencing an account lockout or login issue.</button>
+    <button class="question-btn" onclick="askSuggestion(this)">Why was my card charged twice for a subscription?</button>
+    <button class="question-btn" onclick="askSuggestion(this)">How do I update my billing info or payment method?</button>
+    <button class="question-btn" onclick="askSuggestion(this)">What is the status of ongoing system service outages?</button>
+    <button class="question-btn" onclick="askSuggestion(this)">How can I escalate my ticket to a human specialist?</button>
 
     <div class="sidebar-divider"></div>
 
@@ -478,10 +478,10 @@
   <main class="chat-area">
     <header class="chat-header">
       <div>
-        <div class="chat-header-title">🎓 Cambridge Student &amp; Applicant Support</div>
-        <div class="chat-header-sub">Powered by Google Gemini · Semantic Document Retrieval</div>
+        <div class="chat-header-title">🎧 CSR Agent · Customer Support</div>
+        <div class="chat-header-sub">Powered by Google Gemini · Grounded Support Ticket Retrieval</div>
       </div>
-      <div class="header-badge">AI Assistant</div>
+      <div class="header-badge">Live Support</div>
     </header>
 
     <div class="messages" id="messages"></div>
@@ -492,7 +492,7 @@
           <textarea
             id="user-input"
             rows="1"
-            placeholder="Ask about admissions, college life, financial aid, supervisions…"
+            placeholder="Describe your issue or ask about billing, returns, technical support, account access…"
           ></textarea>
           <button id="send-btn" onclick="sendMessage()" title="Send">
             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -678,7 +678,7 @@
 
   function addWelcomeMessage() {
     appendMessage('assistant',
-      `👋 **Welcome to the Cambridge Student & Applicant Support Bot!**\n\nI can help you with:\n- 📚 **Admissions & Deadlines**\n- 🏛️ **Collegiate System & Choosing a College**\n- 🎓 **Supervisions & Academic Guidance**\n- 💷 **Cambridge Bursary & Financial Aid**\n- 🏥 **Health, Counselling & Disability (ADRC)**\n- 💼 **Careers Service & Student Life**\n\nWhat would you like to explore today?`
+      `👋 **Hello! I am your CSR Agent.**\n\nI am here to assist you with any customer support inquiries, including:\n- 💳 **Billing & Payment Discrepancies**\n- 📦 **Returns, Refunds & Order Exchanges**\n- 🔑 **Account Access & Password Recovery**\n- 🛠️ **Technical Support & Troubleshooting**\n- ⚡ **Service Outages & Maintenance Alerts**\n- 🙋 **General Customer Care & Ticket Escalation**\n\nHow can I help you today?`
     );
   }
 
