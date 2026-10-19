@@ -607,8 +607,17 @@
       const sub   = document.getElementById('status-sub');
       if (d.engine_ready) {
         dot.classList.remove('loading');
-        label.textContent = 'Online & Ready';
-        sub.textContent   = 'Gemini RAG active';
+        if (d.is_online) {
+          dot.style.background = '#10b981';
+          dot.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.4)';
+          label.textContent = 'Online & Ready';
+          sub.textContent   = (d.provider === 'gemini' ? 'Gemini AI active' : (d.provider || 'AI') + ' active');
+        } else {
+          dot.style.background = '#f59e0b';
+          dot.style.boxShadow = '0 0 10px rgba(245, 158, 11, 0.4)';
+          label.textContent = 'Offline Demo Mode';
+          sub.textContent   = 'No API key in .env';
+        }
       } else {
         label.textContent = 'Warming up…';
         sub.textContent   = 'Loading knowledge base';

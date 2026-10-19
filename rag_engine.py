@@ -11,24 +11,34 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+# Load environment variables robustly
+env_path = Path(__file__).resolve().parent / ".env"
 try:
     from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    # Fallback minimal .env loader if python-dotenv is missing
-    env_path = Path(__file__).parent / ".env"
     if env_path.exists():
+        load_dotenv(dotenv_path=env_path, override=True)
+    else:
+        load_dotenv(override=True)
+except ImportError:
+    pass
+
+# Manual fallback loader (handles Windows UTF-16, UTF-8 BOM, and quoted values)
+if env_path.exists():
+    for enc in ("utf-8", "utf-8-sig", "utf-16", "latin-1"):
         try:
-            with open(env_path, "r", encoding="utf-8") as _f:
+            with open(env_path, "r", encoding=enc) as _f:
                 for _line in _f:
                     _line = _line.strip()
                     if _line and not _line.startswith("#") and "=" in _line:
                         _k, _v = _line.split("=", 1)
-                        _k, _v = _k.strip(), _v.strip().strip("'\"")
-                        if _k not in os.environ:
+                        _k = _k.strip()
+                        _v = _v.strip().strip("'\"")
+                        if _k and (_k not in os.environ or not os.environ[_k]):
                             os.environ[_k] = _v
+            break
         except Exception:
-            pass
+            continue
+
 # Try importing SDKs gracefully
 try:
     from google import genai
@@ -60,7 +70,7 @@ class CambridgeRAGEngine:
 
         self.documents: List[Dict[str, Any]] = []
         self.embeddings: Optional[np.ndarray] = None
-        self.provider = os.getenv("MODEL_PROVIDER", "gemini").lower()
+        self.provider = (os.getenv("MODEL_PROVIDER") or "gemini").lower().strip()
 
         # Initialize clients & model configs
         self._init_clients()
@@ -74,12 +84,19 @@ class CambridgeRAGEngine:
         self.is_configured = False
 
         if self.provider == "gemini":
-            api_key = os.getenv("GEMINI_KEY") or os.getenv("GEMINI_API_KEY", "")
-            # In google-genai SDK, use gemini-2.5-flash or gemini-2.0-flash
-            self.chat_model = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
-            self.embed_model = os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
+            raw_key = (
+                os.getenv("GEMINI_KEY")
+                or os.getenv("GEMINI_API_KEY")
+                or os.getenv("GOOGLE_API_KEY")
+                or os.getenv("GOOGLE_GENAI_API_KEY")
+                or ""
+            )
+            api_key = raw_key.strip().strip("'\"")
+            # In google-genai SDK, use modern supported models
+            self.chat_model = (os.getenv("GEMINI_CHAT_MODEL") or "gemini-3.8-flash").strip()
+            self.embed_model = (os.getenv("GEMINI_EMBEDDING_MODEL") or "gemini-embedding-001").strip()
 
-            if api_key and not api_key.startswith("your_") and HAS_GENAI:
+            if api_key and not api_key.startswith("your_") and not api_key.startswith("sk-your_") and HAS_GENAI:
                 try:
                     self.client = genai.Client(api_key=api_key)
                     self.is_configured = True
@@ -328,8 +345,8 @@ class CambridgeRAGEngine:
                         )
                         answer = res.text or ""
                     except Exception as inner_err:
-                        # Fallback to gemini-2.0-flash or gemini-2.5-flash
-                        fallback_model = "gemini-2.0-flash" if self.chat_model != "gemini-2.0-flash" else "gemini-2.5-flash"
+                        # Fallback to gemini-flash-latest
+                        fallback_model = "gemini-flash-latest" if self.chat_model != "gemini-flash-latest" else "gemini-3.8-flash"
                         res = self.client.models.generate_content(
                             model=fallback_model,
                             contents=full_prompt,

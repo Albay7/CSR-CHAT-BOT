@@ -64,7 +64,17 @@ class ChatResponse(BaseModel):
 @app.get("/health")
 def health():
     """Health check endpoint used by Azure App Service and frontend."""
-    return {"status": "ok", "engine_ready": rag_engine is not None}
+    is_ready = rag_engine is not None
+    is_online = rag_engine.is_configured if is_ready else False
+    provider = rag_engine.provider if is_ready else "none"
+    model = rag_engine.chat_model if is_ready else ""
+    return {
+        "status": "ok",
+        "engine_ready": is_ready,
+        "is_online": is_online,
+        "provider": provider,
+        "model": model,
+    }
 
 
 @app.post("/api/chat", response_model=ChatResponse)
